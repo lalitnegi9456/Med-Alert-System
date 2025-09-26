@@ -1,0 +1,501 @@
+import java.io.*;
+import java.util.*;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+
+public class Main {
+
+    static class User implements Serializable {
+        private String name;
+        private String phoneNumber;
+        private boolean isDoctor;
+        private String specialist;
+        private String password;
+        private String emergencySlot;
+
+        public User(String name, String phoneNumber, boolean isDoctor, String specialist, String password) {
+            this.name = name;
+            this.phoneNumber = phoneNumber;
+            this.isDoctor = isDoctor;
+            this.specialist = isDoctor ? specialist : "N/A";
+            this.password = password;
+            this.emergencySlot = isDoctor ? "Not Set" : "";
+        }
+
+        public String getName() { return name; }
+        public String getPhoneNumber() { return phoneNumber; }
+        public boolean isDoctor() { return isDoctor; }
+        public String getSpecialist() { return specialist; }
+        public String getPassword() { return password; }
+        public String getEmergencySlot() { return emergencySlot; }
+        public void setEmergencySlot(String slot) { this.emergencySlot = slot; }
+    }
+
+    static class Appointment implements Serializable {
+        private User patient;
+        private User doctor;
+        private String date;
+        private boolean isEmergency;
+
+        public Appointment(User patient, User doctor, String date) {
+            this.patient = patient;
+            this.doctor = doctor;
+            this.date = date;
+            this.isEmergency = false;
+        }
+
+        public Appointment(User patient, User doctor, String date, boolean isEmergency) {
+            this.patient = patient;
+            this.doctor = doctor;
+            this.date = date;
+            this.isEmergency = isEmergency;
+        }
+
+        public String getDetails() {
+            return "Appointment: " + patient.getName() + " with Dr. " + doctor.getName() +
+                   " on " + date + (isEmergency ? " (Emergency)" : "");
+        }
+
+        public User getDoctor() { return doctor; }
+        public User getPatient() { return patient; }
+        public String getDate() { return date; }
+        public boolean isEmergency() { return isEmergency; }
+        public void setDate(String newDate) { this.date = newDate; }
+        
+        @Override
+        public String toString() {
+            return patient.getName() + " - " + date + (isEmergency ? " (Emergency)" : "");
+        }
+    }
+
+    static class MedAlertService {
+        private java.util.List<User> doctors;
+        private java.util.List<User> patients;
+        private java.util.List<Appointment> appointments;
+
+        private static final String DOCTORS_FILE = "doctors.txt";
+        private static final String PATIENTS_FILE = "patients.txt";
+        private static final String APPOINTMENTS_FILE = "appointments.txt";
+
+        public MedAlertService() {
+            this.doctors = loadUsers(DOCTORS_FILE);
+            this.patients = loadUsers(PATIENTS_FILE);
+            this.appointments = loadAppointments();
+        }
+
+        public void registerUser(User user, boolean isDoctor) {
+            if (isDoctor) {
+                doctors.add(user);
+                saveUsers(doctors, DOCTORS_FILE);
+            } else {
+                patients.add(user);
+                saveUsers(patients, PATIENTS_FILE);
+            }
+        }
+
+        public java.util.List<User> getDoctors() { return doctors; }
+        public java.util.List<User> getPatients() { return patients; }
+        public java.util.List<Appointment> getAppointments() { return appointments; }
+
+        public void bookAppointment(User patient, User doctor, String date) {
+            appointments.add(new Appointment(patient, doctor, date));
+            saveAppointments();
+            JOptionPane.showMessageDialog(null, "Appointment booked with Dr. " + doctor.getName());
+        }
+
+        public void bookEmergencyAppointment(User patient, User doctor) {
+            appointments.add(new Appointment(patient, doctor, doctor.getEmergencySlot(), true));
+            saveAppointments();
+            JOptionPane.showMessageDialog(null, "Emergency appointment booked with Dr. " + doctor.getName());
+        }
+
+        public void rescheduleAppointment(Appointment appointment, String newDate) {
+            appointment.setDate(newDate);
+            saveAppointments();
+            JOptionPane.showMessageDialog(null, "Appointment rescheduled to " + newDate);
+        }
+
+        public java.util.List<Appointment> getAppointmentsForDoctor(String doctorPhone) {
+            java.util.List<Appointment> result = new ArrayList<>();
+            for (Appointment appt : appointments) {
+                if (appt.getDoctor().getPhoneNumber().equals(doctorPhone)) {
+                    result.add(appt);
+                }
+            }
+            return result;
+        }
+
+        public java.util.List<Appointment> getAppointmentsForPatient(String patientPhone) {
+            java.util.List<Appointment> result = new ArrayList<>();
+            for (Appointment appt : appointments) {
+                if (appt.getPatient().getPhoneNumber().equals(patientPhone)) {
+                    result.add(appt);
+                }
+            }
+            return result;
+        }
+
+        private void saveUsers(java.util.List<User> users, String filename) {
+            try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
+                oos.writeObject(users);
+            } catch (IOException e) {
+                System.out.println("Error saving users: " + e.getMessage());
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private java.util.List<User> loadUsers(String filename) {
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
+                return (java.util.List<User>) ois.readObject();
+            } catch (IOException | ClassNotFoundException e) {
+                return new ArrayList<>();
+            }
+        }
+
+        private void saveAppointments() {
+            try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(APPOINTMENTS_FILE))) {
+                oos.writeObject(appointments);
+            } catch (IOException e) {
+                System.out.println("Error saving appointments: " + e.getMessage());
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private java.util.List<Appointment> loadAppointments() {
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(APPOINTMENTS_FILE))) {
+                return (java.util.List<Appointment>) ois.readObject();
+            } catch (IOException | ClassNotFoundException e) {
+                return new ArrayList<>();
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        MedAlertService service = new MedAlertService();
+        SwingUtilities.invokeLater(() -> createAndShowGUI(service));
+    }
+
+    private static void createAndShowGUI(MedAlertService service) {
+        JFrame frame = new JFrame("MedAlert System");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(400, 400);
+        frame.setLayout(new GridLayout(5, 1));
+
+        frame.add(new JLabel("Welcome to MedAlert", SwingConstants.CENTER));
+        frame.add(createButton("Register Doctor", () -> showRegistrationForm(service, true)));
+        frame.add(createButton("Register Patient", () -> showRegistrationForm(service, false)));
+        frame.add(createButton("Doctor Login", () -> showDoctorLogin(service)));
+        frame.add(createButton("Patient Login", () -> showPatientLogin(service)));
+
+        frame.setVisible(true);
+    }
+
+    private static JButton createButton(String text, Runnable action) {
+        JButton button = new JButton(text);
+        button.addActionListener(e -> action.run());
+        return button;
+    }
+
+    private static void showRegistrationForm(MedAlertService service, boolean isDoctor) {
+        JFrame frame = new JFrame(isDoctor ? "Doctor Registration" : "Patient Registration");
+        frame.setSize(350, isDoctor ? 350 : 300);
+        frame.setLayout(new GridLayout(isDoctor ? 6 : 5, 2, 10, 10));
+
+        JTextField nameField = new JTextField();
+        JTextField phoneField = new JTextField();
+        JPasswordField passwordField = new JPasswordField();
+        JTextField specialistField = new JTextField();
+        JTextField emergencySlotField = new JTextField();
+
+        frame.add(new JLabel("Name:"));
+        frame.add(nameField);
+        frame.add(new JLabel("Phone Number:"));
+        frame.add(phoneField);
+        frame.add(new JLabel("Password:"));
+        frame.add(passwordField);
+
+        if (isDoctor) {
+            frame.add(new JLabel("Specialty:"));
+            frame.add(specialistField);
+            frame.add(new JLabel("Emergency Slot:"));
+            frame.add(emergencySlotField);
+        }
+
+        JButton submitBtn = new JButton("Register");
+        submitBtn.addActionListener(e -> {
+            String name = nameField.getText();
+            String phone = phoneField.getText();
+            String password = new String(passwordField.getPassword());
+
+            if (name.isEmpty() || phone.isEmpty() || password.isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "Please fill all required fields");
+                return;
+            }
+
+            User user = new User(name, phone, isDoctor, isDoctor ? specialistField.getText() : "N/A", password);
+            if (isDoctor) {
+                user.setEmergencySlot(emergencySlotField.getText());
+            }
+            service.registerUser(user, isDoctor);
+            JOptionPane.showMessageDialog(frame, "Registration successful!");
+            frame.dispose();
+        });
+
+        frame.add(submitBtn);
+        frame.setVisible(true);
+    }
+
+    private static void showDoctorLogin(MedAlertService service) {
+        JFrame frame = new JFrame("Doctor Login");
+        frame.setSize(300, 200);
+        frame.setLayout(new GridLayout(3, 2, 10, 10));
+
+        JTextField phoneField = new JTextField();
+        JPasswordField passwordField = new JPasswordField();
+
+        frame.add(new JLabel("Phone Number:"));
+        frame.add(phoneField);
+        frame.add(new JLabel("Password:"));
+        frame.add(passwordField);
+
+        JButton loginBtn = new JButton("Login");
+        loginBtn.addActionListener(e -> {
+            String phone = phoneField.getText();
+            String password = new String(passwordField.getPassword());
+
+            for (User doctor : service.getDoctors()) {
+                if (doctor.getPhoneNumber().equals(phone) && doctor.getPassword().equals(password)) {
+                    frame.dispose();
+                    showDoctorDashboard(service, doctor);
+                    return;
+                }
+            }
+            JOptionPane.showMessageDialog(frame, "Invalid credentials");
+        });
+
+        frame.add(loginBtn);
+        frame.setVisible(true);
+    }
+
+    private static void showDoctorDashboard(MedAlertService service, User doctor) {
+        JFrame frame = new JFrame("Doctor Dashboard - " + doctor.getName());
+        frame.setSize(600, 500);
+        frame.setLayout(new BorderLayout());
+
+        JTabbedPane tabbedPane = new JTabbedPane();
+
+        // View Appointments Tab
+        JPanel viewPanel = new JPanel(new BorderLayout());
+        JTextArea appointmentsArea = new JTextArea();
+        appointmentsArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(appointmentsArea);
+
+        java.util.List<Appointment> appointments = service.getAppointmentsForDoctor(doctor.getPhoneNumber());
+        for (Appointment appt : appointments) {
+            appointmentsArea.append(appt.getDetails() + "\n");
+        }
+
+        viewPanel.add(scrollPane, BorderLayout.CENTER);
+        tabbedPane.addTab("View Appointments", viewPanel);
+
+        // Reschedule Appointments Tab
+        JPanel reschedulePanel = new JPanel(new GridLayout(4, 2, 10, 10));
+        reschedulePanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JComboBox<Appointment> appointmentCombo = new JComboBox<>();
+        for (Appointment appt : appointments) {
+            appointmentCombo.addItem(appt);
+        }
+
+        JTextField newDateField = new JTextField();
+        JButton rescheduleBtn = new JButton("Reschedule");
+
+        rescheduleBtn.addActionListener(e -> {
+            Appointment selected = (Appointment) appointmentCombo.getSelectedItem();
+            if (selected != null && !newDateField.getText().isEmpty()) {
+                service.rescheduleAppointment(selected, newDateField.getText());
+                JOptionPane.showMessageDialog(frame, "Appointment rescheduled successfully!");
+                frame.dispose();
+                showDoctorDashboard(service, doctor);
+            } else {
+                JOptionPane.showMessageDialog(frame, "Please select an appointment and enter a new date");
+            }
+        });
+
+        reschedulePanel.add(new JLabel("Select Appointment:"));
+        reschedulePanel.add(appointmentCombo);
+        reschedulePanel.add(new JLabel("New Date/Time:"));
+        reschedulePanel.add(newDateField);
+        reschedulePanel.add(new JLabel(""));
+        reschedulePanel.add(rescheduleBtn);
+
+        tabbedPane.addTab("Reschedule Appointments", reschedulePanel);
+
+        // Emergency Slot Tab
+        JPanel emergencyPanel = new JPanel(new GridLayout(3, 2, 10, 10));
+        emergencyPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JLabel currentSlotLabel = new JLabel("Current Emergency Slot: " + doctor.getEmergencySlot());
+        JTextField newSlotField = new JTextField();
+        JButton updateSlotBtn = new JButton("Update Emergency Slot");
+
+        updateSlotBtn.addActionListener(e -> {
+            if (!newSlotField.getText().isEmpty()) {
+                doctor.setEmergencySlot(newSlotField.getText());
+                service.saveUsers(service.getDoctors(), MedAlertService.DOCTORS_FILE);
+                currentSlotLabel.setText("Current Emergency Slot: " + doctor.getEmergencySlot());
+                JOptionPane.showMessageDialog(frame, "Emergency slot updated successfully!");
+            }
+        });
+
+        emergencyPanel.add(currentSlotLabel);
+        emergencyPanel.add(new JLabel(""));
+        emergencyPanel.add(new JLabel("New Emergency Slot:"));
+        emergencyPanel.add(newSlotField);
+        emergencyPanel.add(new JLabel(""));
+        emergencyPanel.add(updateSlotBtn);
+
+        tabbedPane.addTab("Emergency Slot", emergencyPanel);
+
+        JButton logoutBtn = new JButton("Logout");
+        logoutBtn.addActionListener(e -> frame.dispose());
+
+        frame.add(tabbedPane, BorderLayout.CENTER);
+        frame.add(logoutBtn, BorderLayout.SOUTH);
+        frame.setVisible(true);
+    }
+
+    private static void showPatientLogin(MedAlertService service) {
+        JFrame frame = new JFrame("Patient Login");
+        frame.setSize(300, 200);
+        frame.setLayout(new GridLayout(3, 2, 10, 10));
+
+        JTextField phoneField = new JTextField();
+        JPasswordField passwordField = new JPasswordField();
+
+        frame.add(new JLabel("Phone Number:"));
+        frame.add(phoneField);
+        frame.add(new JLabel("Password:"));
+        frame.add(passwordField);
+
+        JButton loginBtn = new JButton("Login");
+        loginBtn.addActionListener(e -> {
+            String phone = phoneField.getText();
+            String password = new String(passwordField.getPassword());
+
+            for (User patient : service.getPatients()) {
+                if (patient.getPhoneNumber().equals(phone) && patient.getPassword().equals(password)) {
+                    frame.dispose();
+                    showPatientDashboard(service, patient);
+                    return;
+                }
+            }
+            JOptionPane.showMessageDialog(frame, "Invalid credentials");
+        });
+
+        frame.add(loginBtn);
+        frame.setVisible(true);
+    }
+
+    private static void showPatientDashboard(MedAlertService service, User patient) {
+        JFrame frame = new JFrame("Patient Dashboard - " + patient.getName());
+        frame.setSize(500, 400);
+        frame.setLayout(new BorderLayout());
+
+        JTextArea appointmentsArea = new JTextArea();
+        appointmentsArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(appointmentsArea);
+
+        java.util.List<Appointment> appointments = service.getAppointmentsForPatient(patient.getPhoneNumber());
+        for (Appointment appt : appointments) {
+            appointmentsArea.append(appt.getDetails() + "\n");
+        }
+
+        JButton bookBtn = new JButton("Book New Appointment");
+        bookBtn.addActionListener(e -> showAppointmentForm(service, patient));
+
+        JButton emergencyBtn = new JButton("Book Emergency");
+        emergencyBtn.addActionListener(e -> showEmergencyBookingForm(service, patient));
+
+        JButton logoutBtn = new JButton("Logout");
+        logoutBtn.addActionListener(e -> frame.dispose());
+
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 3));
+        buttonPanel.add(bookBtn);
+        buttonPanel.add(emergencyBtn);
+        buttonPanel.add(logoutBtn);
+
+        frame.add(scrollPane, BorderLayout.CENTER);
+        frame.add(buttonPanel, BorderLayout.SOUTH);
+        frame.setVisible(true);
+    }
+
+    private static void showAppointmentForm(MedAlertService service, User patient) {
+        JFrame frame = new JFrame("Book Appointment");
+        frame.setSize(400, 300);
+        frame.setLayout(new GridLayout(5, 2, 10, 10));
+
+        frame.add(new JLabel("Patient:"));
+        frame.add(new JLabel(patient.getName()));
+
+        JComboBox<String> doctorList = new JComboBox<>();
+        for (User doc : service.getDoctors()) {
+            doctorList.addItem(doc.getName() + " (" + doc.getSpecialist() + ")");
+        }
+
+        JTextField dateField = new JTextField();
+
+        frame.add(new JLabel("Select Doctor:"));
+        frame.add(doctorList);
+        frame.add(new JLabel("Date/Time:"));
+        frame.add(dateField);
+
+        JButton submit = new JButton("Book");
+        submit.addActionListener(e -> {
+            User doctor = service.getDoctors().get(doctorList.getSelectedIndex());
+            String date = dateField.getText();
+            service.bookAppointment(patient, doctor, date);
+            frame.dispose();
+            showPatientDashboard(service, patient);
+        });
+
+        frame.add(submit);
+        frame.setVisible(true);
+    }
+
+    private static void showEmergencyBookingForm(MedAlertService service, User patient) {
+        JFrame frame = new JFrame("Emergency Booking");
+        frame.setSize(400, 300);
+        frame.setLayout(new GridLayout(4, 1, 10, 10));
+
+        JComboBox<String> doctorList = new JComboBox<>();
+
+        java.util.List<User> eligibleDoctors = new ArrayList<>();
+        for (User doc : service.getDoctors()) {
+            if (!doc.getEmergencySlot().equalsIgnoreCase("Not Set")) {
+                doctorList.addItem(doc.getName() + " - " + doc.getEmergencySlot());
+                eligibleDoctors.add(doc);
+            }
+        }
+
+        frame.add(new JLabel("Patient:"));
+        frame.add(new JLabel(patient.getName()));
+        frame.add(new JLabel("Available Emergency Slots:"));
+        frame.add(doctorList);
+
+        JButton submit = new JButton("Book Emergency");
+        submit.addActionListener(e -> {
+            int selected = doctorList.getSelectedIndex();
+            if (selected >= 0) {
+                User doctor = eligibleDoctors.get(selected);
+                service.bookEmergencyAppointment(patient, doctor);
+                frame.dispose();
+                showPatientDashboard(service, patient);
+            }
+        });
+
+        frame.add(submit);
+        frame.setVisible(true);
+    }
+}
