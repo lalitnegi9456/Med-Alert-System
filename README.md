@@ -1,1 +1,3 @@
 # Med-Alert-System
+
+We're aiming to make a system that's smooth and easy to use when you want to set up meetings between doctors and patients. We want to cut down on the number of times appointments are dropped or messed up by timing issues. We're planning on adding a messaging system to make talking things through easier. We need to make sure docs tell patients ahead of time if they got to change their appointment slot. We're thinking of bringing in a chatbot that can deal with medical questions fast. We're setting up a way for patients to tell us what they think so we can make our services and their happiness levels better
